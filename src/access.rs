@@ -21,8 +21,11 @@ limitations under the License.
 use serde::Serialize;
 
 use crate::errors::JiraQueryError;
-use crate::issue_model::{Issue, JqlResults};
-use crate::{Comment, User};
+use crate::issue_model::{
+    Issue, JqlResults, Transition, TransitionComment, TransitionCommentAdd, TransitionResponse,
+    Update, UpdateRequest,
+};
+use crate::{Comment, Status, User};
 
 // The prefix of every subsequent REST request.
 // This string comes directly after the host in the URL.
@@ -77,8 +80,10 @@ enum Method<'a> {
     Key(&'a str),
     Keys(&'a [&'a str]),
     Search(&'a str),
-    User(&'a str),
+    // User(&'a str),
     Myself(),
+    Status(&'a str),
+    Statuses(),
 }
 
 impl<'a> Method<'a> {
@@ -87,8 +92,10 @@ impl<'a> Method<'a> {
             Self::Key(id) => format!("issue/{id}"),
             Self::Keys(ids) => format!("search?jql=id%20in%20({})", ids.join(",")),
             Self::Search(query) => format!("search?jql={query}"),
-            Self::User(id) => format!("user?accountId={id}"),
+            // Self::User(id) => format!("user?accountId={id}"),
             Self::Myself() => format!("myself"),
+            Self::Status(status) => format!("status/{status}"),
+            Self::Statuses() => format!("status"),
         }
     }
 }
@@ -144,8 +151,14 @@ impl JiraInstance {
 
         // The `startAt` option is only valid with JQL. With a URL by key, it breaks the REST query.
         let start_at = match method {
-            Method::Key(_) | Method::User(_) | Method::Myself() => String::new(),
-            Method::Keys(_) | Method::Search(_) => format!("&startAt={start_at}"),
+            Method::Key(_)
+            // | Method::User(_)
+            | Method::Myself()
+            | Method::Status(_)
+            | Method::Statuses() => String::new(),
+            Method::Keys(_) | Method::Search(_) => {
+                format!("&startAt={start_at}")
+            }
         };
 
         format!(
@@ -305,6 +318,55 @@ impl JiraInstance {
         }
     }
 
+    pub async fn get_status(&self, status_id_or_name: &str) -> Result<Status, JiraQueryError> {
+        let url = self.path(&Method::Status(status_id_or_name), 0);
+
+        let status = self
+            .authenticated_get(&url)
+            .await?
+            .error_for_status()?
+            .json::<Status>()
+            .await?;
+
+        Ok(status)
+    }
+
+    pub async fn get_statuses(&self) -> Result<Vec<Status>, JiraQueryError> {
+        let url = self.path(&Method::Statuses(), 0);
+
+        let statuses = self
+            .authenticated_get(&url)
+            .await?
+            .error_for_status()?
+            .json::<Vec<Status>>()
+            .await?;
+
+        Ok(statuses)
+    }
+
+    pub async fn get_transition(
+        &self,
+        key: &str,
+        transition_id: &str,
+    ) -> Result<TransitionResponse, JiraQueryError> {
+        let url = self.path(&Method::Key(&key), 0) + "/transitions?transitionId=" + transition_id;
+
+        tracing::info!("Transition url: {}", url);
+
+        let transition = self.authenticated_get(&url).await?;
+
+        tracing::info!("Transition: {:#?}", transition);
+
+        let transition = transition
+            .error_for_status()?
+            .json::<TransitionResponse>()
+            .await?;
+
+        tracing::info!("Transition: {:#?}", transition);
+
+        Ok(transition)
+    }
+
     pub async fn post_comment(
         &self,
         issue_id: &str,
@@ -338,15 +400,48 @@ impl JiraInstance {
         tracing::info!("Built comment: {:#?}", comment);
 
         // let response = self.authenticated_post(&url, &comment).await?;
-        let response = self.authenticated_post(&url, &comment).await?;
-
-        tracing::info!("Response: {:#?}", response);
-
-        let comment = response.json::<Comment>().await?;
+        let comment = self
+            .authenticated_post(&url, &comment)
+            .await?
+            .error_for_status()?
+            .json::<Comment>()
+            .await?;
 
         tracing::info!("Parsed comment: {:#?}", comment);
 
         Ok(comment)
+    }
+
+    pub async fn update_issue_status(
+        &self,
+        key: &str,
+        status_id: &str,
+        message: String,
+    ) -> Result<Issue, JiraQueryError> {
+        let url = self.path(&Method::Key(&key), 0) + "/transitions";
+
+        let update = UpdateRequest {
+            update: Update {
+                comment: vec![TransitionComment {
+                    add: TransitionCommentAdd { body: message },
+                }],
+            },
+            transition: Transition {
+                id: status_id.to_string(),
+                to: None,
+            },
+        };
+
+        tracing::info!("Update: {:#?}", update);
+        tracing::info!("Update: {}", serde_json::to_string_pretty(&update).unwrap());
+
+        let response = self.authenticated_post(&url, &update).await?;
+
+        tracing::info!("Post Post: {:#?}", response);
+
+        response.error_for_status()?;
+
+        self.issue(key).await
     }
 }
 

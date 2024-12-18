@@ -24,6 +24,7 @@ use serde_json::Value;
 /// The response from Jira to a JQL query,
 /// which includes the list of requested issues and additional metadata.
 #[derive(Clone, Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct JqlResults {
     pub issues: Vec<Issue>,
     #[serde(flatten)]
@@ -136,7 +137,7 @@ pub struct Version {
 }
 
 /// The Jira issue status.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Status {
     pub description: String,
     #[serde(rename = "iconUrl")]
@@ -151,8 +152,41 @@ pub struct Status {
     pub extra: Value,
 }
 
-/// The category of a Jira issue status.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Update {
+    pub comment: Vec<TransitionComment>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct UpdateRequest {
+    pub update: Update,
+    pub transition: Transition,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Transition {
+    pub id: String,
+    pub to: Option<Status>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TransitionResponse {
+    pub expand: String,
+    pub transitions: Vec<Transition>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TransitionComment {
+    pub add: TransitionCommentAdd,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TransitionCommentAdd {
+    pub body: String,
+}
+
+/// The category of a Jira issue status.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct StatusCategory {
     #[serde(rename = "colorName")]
     pub color_name: String,
