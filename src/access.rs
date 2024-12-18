@@ -420,12 +420,16 @@ impl JiraInstance {
     ) -> Result<Issue, JiraQueryError> {
         let url = self.path(&Method::Key(&key), 0) + "/transitions";
 
+        let comment = if message.is_empty() {
+            Vec::new()
+        } else {
+            vec![TransitionComment {
+                add: TransitionCommentAdd { body: message },
+            }]
+        };
+
         let update = UpdateRequest {
-            update: Update {
-                comment: vec![TransitionComment {
-                    add: TransitionCommentAdd { body: message },
-                }],
-            },
+            update: Update { comment },
             transition: Transition {
                 id: status_id.to_string(),
                 to: None,
