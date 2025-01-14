@@ -22,8 +22,8 @@ use serde::Serialize;
 
 use crate::errors::JiraQueryError;
 use crate::issue_model::{
-    Issue, JqlResults, Transition, TransitionComment, TransitionCommentAdd, TransitionResponse,
-    Update, UpdateRequest,
+    Fields, FieldsUpdate, FieldsUpdateRequest, Issue, JqlResults, Transition, TransitionComment,
+    TransitionCommentAdd, TransitionResponse, Update, UpdateRequest,
 };
 use crate::{Comment, Status, User};
 
@@ -80,7 +80,7 @@ enum Method<'a> {
     Key(&'a str),
     Keys(&'a [&'a str]),
     Search(&'a str),
-    // User(&'a str),
+    User(&'a str),
     Myself(),
     Status(&'a str),
     Statuses(),
@@ -92,7 +92,7 @@ impl<'a> Method<'a> {
             Self::Key(id) => format!("issue/{id}"),
             Self::Keys(ids) => format!("search?jql=id%20in%20({})", ids.join(",")),
             Self::Search(query) => format!("search?jql={query}"),
-            // Self::User(id) => format!("user?accountId={id}"),
+            Self::User(id) => format!("user?username={id}"),
             Self::Myself() => format!("myself"),
             Self::Status(status) => format!("status/{status}"),
             Self::Statuses() => format!("status"),
@@ -152,7 +152,7 @@ impl JiraInstance {
         // The `startAt` option is only valid with JQL. With a URL by key, it breaks the REST query.
         let start_at = match method {
             Method::Key(_)
-            // | Method::User(_)
+            | Method::User(_)
             | Method::Myself()
             | Method::Status(_)
             | Method::Statuses() => String::new(),
@@ -188,6 +188,24 @@ impl JiraInstance {
         body: &T,
     ) -> Result<reqwest::Response, reqwest::Error> {
         let request_builder = self.client.post(url);
+        let authenticated = match &self.auth {
+            Auth::Anonymous => request_builder,
+            Auth::ApiKey(key) => request_builder.header("Authorization", &format!("Bearer {key}")),
+            Auth::Basic { user, password } => request_builder.basic_auth(user, Some(password)),
+        };
+        authenticated
+            .header("Content-Type", "application/json")
+            .json(body)
+            .send()
+            .await
+    }
+
+    async fn authenticated_put<T: Serialize + Sized>(
+        &self,
+        url: &str,
+        body: &T,
+    ) -> Result<reqwest::Response, reqwest::Error> {
+        let request_builder = self.client.put(url);
         let authenticated = match &self.auth {
             Auth::Anonymous => request_builder,
             Auth::ApiKey(key) => request_builder.header("Authorization", &format!("Bearer {key}")),
@@ -377,18 +395,21 @@ impl JiraInstance {
 
         tracing::info!("URL: {}", url);
 
-        // let user_url = self.path(&Method::User(user_id), 0);
-        let user_url = self.path(&Method::Myself(), 0);
-
-        tracing::info!("User URL: {}", user_url);
-
-        let user = self
-            .authenticated_get(&user_url)
-            .await?
-            .json::<User>()
-            .await?;
-
-        tracing::info!("User: {:#?}", user);
+        // let user_url = if user_id.is_empty() {
+        //     self.path(&Method::Myself(), 0)
+        // } else {
+        //     self.path(&Method::User(user_id), 0)
+        // };
+        //
+        // tracing::info!("User URL: {}", user_url);
+        //
+        // let user = self
+        //     .authenticated_get(&user_url)
+        //     .await?
+        //     .json::<User>()
+        //     .await?;
+        //
+        // tracing::info!("User: {:#?}", user);
 
         // TODO: If user_id != "", don't use myself
         let comment = Comment {
@@ -400,12 +421,11 @@ impl JiraInstance {
         tracing::info!("Built comment: {:#?}", comment);
 
         // let response = self.authenticated_post(&url, &comment).await?;
-        let comment = self
-            .authenticated_post(&url, &comment)
-            .await?
-            .error_for_status()?
-            .json::<Comment>()
-            .await?;
+        let comment = self.authenticated_post(&url, &comment).await?;
+
+        tracing::info!("Receieved comment: {:#?}", comment);
+
+        let comment = comment.error_for_status()?.json::<Comment>().await?;
 
         tracing::info!("Parsed comment: {:#?}", comment);
 
@@ -442,6 +462,22 @@ impl JiraInstance {
         let response = self.authenticated_post(&url, &update).await?;
 
         tracing::info!("Post Post: {:#?}", response);
+
+        response.error_for_status()?;
+
+        self.issue(key).await
+    }
+
+    pub async fn update_issue(
+        &self,
+        key: &str,
+        fields: FieldsUpdate,
+    ) -> Result<Issue, JiraQueryError> {
+        let url = self.path(&Method::Key(&key), 0);
+
+        let request = FieldsUpdateRequest { fields };
+
+        let response = self.authenticated_put(&url, &request).await?;
 
         response.error_for_status()?;
 

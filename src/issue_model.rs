@@ -32,7 +32,7 @@ pub struct JqlResults {
 }
 
 /// A single Jira issue with all its fields.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Issue {
     pub id: String,
     pub key: String,
@@ -45,7 +45,7 @@ pub struct Issue {
 }
 
 /// A container for most fields of a Jira issue.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Fields {
     #[serde(rename = "lastViewed")]
     pub last_viewed: Option<DateTime<Utc>>,
@@ -97,8 +97,37 @@ pub struct Fields {
     pub extra: Value,
 }
 
+/// A container for fields eligible for update
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct FieldsUpdate {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duedate: Option<NaiveDate>,
+}
+
+impl From<&Fields> for FieldsUpdate {
+    fn from(fields: &Fields) -> Self {
+        Self {
+            description: fields.description.clone(),
+            duedate: fields.duedate,
+            summary: match fields.summary.as_str() {
+                "" => None,
+                _ => Some(fields.summary.clone()),
+            },
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct FieldsUpdateRequest {
+    pub fields: FieldsUpdate,
+}
+
 /// The representation of a Jira user account.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct User {
     pub active: bool,
     #[serde(rename = "displayName")]
@@ -212,7 +241,7 @@ pub struct Resolution {
 }
 
 /// The type of a Jira issue.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct IssueType {
     #[serde(rename = "avatarId")]
     pub avatar_id: Option<i32>,
@@ -229,7 +258,7 @@ pub struct IssueType {
 }
 
 /// A project namespace that groups Jira issues.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Project {
     pub id: String,
     pub key: String,
@@ -284,7 +313,7 @@ pub struct Component {
 }
 
 /// Users watching a Jira issue.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Watches {
     #[serde(rename = "isWatching")]
     pub is_watching: bool,
@@ -388,7 +417,7 @@ pub struct IssueLinkType {
 }
 
 /// The votes for a Jira issue.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Votes {
     #[serde(rename = "hasVoted")]
     pub has_voted: bool,
@@ -405,7 +434,7 @@ pub struct Votes {
 /// * `small` = 24x24 px
 /// * `medium` = 48x48 px
 /// * `full` = maximum
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct AvatarUrls {
     #[serde(rename = "16x16")]
     pub xsmall: String,
