@@ -22,7 +22,7 @@ use serde::Serialize;
 
 use crate::errors::JiraQueryError;
 use crate::issue_model::{
-    Fields, FieldsUpdate, FieldsUpdateRequest, Issue, JqlResults, Transition, TransitionComment,
+    FieldsUpdate, FieldsUpdateRequest, Issue, JqlResults, Transition, TransitionComment,
     TransitionCommentAdd, TransitionResponse, Update, UpdateRequest,
 };
 use crate::{Comment, Status, User};
@@ -385,6 +385,22 @@ impl JiraInstance {
         Ok(transition)
     }
 
+    pub async fn get_myself(&self) -> Result<User, JiraQueryError> {
+        let url = self.path(&Method::Myself(), 0);
+
+        let user = self.authenticated_get(&url).await?.json::<User>().await?;
+
+        Ok(user)
+    }
+
+    pub async fn get_user(&self, username: &str) -> Result<User, JiraQueryError> {
+        let url = self.path(&Method::User(username), 0);
+
+        let user = self.authenticated_get(&url).await?.json::<User>().await?;
+
+        Ok(user)
+    }
+
     pub async fn post_comment(
         &self,
         issue_id: &str,
@@ -395,22 +411,6 @@ impl JiraInstance {
 
         tracing::info!("URL: {}", url);
 
-        // let user_url = if user_id.is_empty() {
-        //     self.path(&Method::Myself(), 0)
-        // } else {
-        //     self.path(&Method::User(user_id), 0)
-        // };
-        //
-        // tracing::info!("User URL: {}", user_url);
-        //
-        // let user = self
-        //     .authenticated_get(&user_url)
-        //     .await?
-        //     .json::<User>()
-        //     .await?;
-        //
-        // tracing::info!("User: {:#?}", user);
-
         // TODO: If user_id != "", don't use myself
         let comment = Comment {
             // author: Some(user),
@@ -420,7 +420,6 @@ impl JiraInstance {
 
         tracing::info!("Built comment: {:#?}", comment);
 
-        // let response = self.authenticated_post(&url, &comment).await?;
         let comment = self.authenticated_post(&url, &comment).await?;
 
         tracing::info!("Receieved comment: {:#?}", comment);
