@@ -419,6 +419,71 @@ pub struct IssueLinkType {
     pub extra: Value,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RemoteLink {
+    pub id: i32,
+    pub application: Option<RemoteLinkApplication>,
+    pub object: Option<RemoteLinkObject>,
+    pub relationship: Option<String>,
+    #[serde(rename = "self")]
+    pub self_link: String,
+    #[serde(flatten)]
+    pub extra: Value,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RemoteLinkRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub application: Option<RemoteLinkApplication>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relationship: Option<String>,
+    #[serde(flatten)]
+    pub extra: Value,
+
+    pub object: RemoteLinkObject,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RemoteLinkApplication {
+    #[serde(rename = "type")]
+    pub application_type: String,
+    pub name: String,
+    #[serde(flatten)]
+    pub extra: Value,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RemoteLinkObject {
+    pub url: String,
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<RemoteLinkIcon>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<RemoteLinkStatus>,
+    #[serde(flatten)]
+    pub extra: Value,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RemoteLinkIcon {
+    pub url16x16: String,
+    pub title: String,
+    pub resolved: bool,
+    #[serde(flatten)]
+    pub extra: Value,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RemoteLinkStatus {
+    pub icon: RemoteLinkIcon,
+    pub resolved: bool,
+    pub description: String,
+    #[serde(flatten)]
+    pub extra: Value,
+}
+
 /// The votes for a Jira issue.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Votes {

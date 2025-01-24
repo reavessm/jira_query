@@ -22,8 +22,8 @@ use serde::Serialize;
 
 use crate::errors::JiraQueryError;
 use crate::issue_model::{
-    FieldsUpdate, FieldsUpdateRequest, Issue, JqlResults, Transition, TransitionComment,
-    TransitionCommentAdd, TransitionResponse, Update, UpdateRequest,
+    FieldsUpdate, FieldsUpdateRequest, Issue, JqlResults, RemoteLink, RemoteLinkRequest,
+    Transition, TransitionComment, TransitionCommentAdd, TransitionResponse, Update, UpdateRequest,
 };
 use crate::{Comment, Status, User};
 
@@ -216,6 +216,16 @@ impl JiraInstance {
             .json(body)
             .send()
             .await
+    }
+
+    async fn authenticated_delete(&self, url: &str) -> Result<reqwest::Response, reqwest::Error> {
+        let request_builder = self.client.delete(url);
+        let authenticated = match &self.auth {
+            Auth::Anonymous => request_builder,
+            Auth::ApiKey(key) => request_builder.header("Authorization", &format!("Bearer {key}")),
+            Auth::Basic { user, password } => request_builder.basic_auth(user, Some(password)),
+        };
+        authenticated.send().await
     }
 
     // This method uses a separate implementation from `issues` because Jira provides a way
@@ -481,6 +491,63 @@ impl JiraInstance {
         response.error_for_status()?;
 
         self.issue(key).await
+    }
+
+    /// If global id is Some, that remote link will be udpated, else a new
+    /// remote link will be created.
+    pub async fn post_remote_link(
+        &self,
+        key: &str,
+        remote_link: &RemoteLinkRequest,
+    ) -> Result<RemoteLink, JiraQueryError> {
+        let url = self.path(&Method::Key(&key), 0) + "/remotelink";
+
+        let response = self.authenticated_post(&url, &remote_link).await?;
+
+        let remote_link = response.error_for_status()?.json::<RemoteLink>().await?;
+
+        Ok(remote_link)
+    }
+
+    pub async fn get_remote_links(&self, key: &str) -> Result<Vec<RemoteLink>, JiraQueryError> {
+        let url = self.path(&Method::Key(&key), 0) + "/remotelink";
+
+        let response = self.authenticated_get(&url).await?;
+
+        let remote_links = response
+            .error_for_status()?
+            .json::<Vec<RemoteLink>>()
+            .await?;
+
+        Ok(remote_links)
+    }
+
+    pub async fn get_remote_link(
+        &self,
+        key: &str,
+        global_id: &i32,
+    ) -> Result<RemoteLink, JiraQueryError> {
+        let url = self.path(&Method::Key(&key), 0) + "/remotelink/" + &global_id.to_string();
+
+        let response = self.authenticated_get(&url).await?;
+
+        let remote_link = response.error_for_status()?.json::<RemoteLink>().await?;
+
+        Ok(remote_link)
+    }
+
+    pub async fn delete_remote_link(
+        &self,
+        key: &str,
+        global_id: &i32,
+    ) -> Result<(), JiraQueryError> {
+        let url = self.path(&Method::Key(&key), 0) + "/remotelink/" + &global_id.to_string();
+
+        let response = self.authenticated_delete(&url).await?;
+
+        response.error_for_status()?;
+
+        Ok(())
     }
 }
 
