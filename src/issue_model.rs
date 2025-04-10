@@ -105,7 +105,7 @@ pub struct FieldsUpdate {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub duedate: Option<NaiveDate>,
+    pub duedate: Option<Option<NaiveDate>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub assignee: Option<User>,
 }
@@ -114,7 +114,10 @@ impl From<&Fields> for FieldsUpdate {
     fn from(fields: &Fields) -> Self {
         Self {
             description: fields.description.clone(),
-            duedate: fields.duedate,
+            duedate: match fields.duedate {
+                Some(_) => Some(fields.duedate),
+                None => None,
+            },
             summary: match fields.summary.as_str() {
                 "" => None,
                 _ => Some(fields.summary.clone()),
