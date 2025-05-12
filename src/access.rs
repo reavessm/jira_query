@@ -25,7 +25,7 @@ use crate::issue_model::{
     FieldsUpdate, FieldsUpdateRequest, Issue, JqlResults, RemoteLink, RemoteLinkRequest,
     Transition, TransitionComment, TransitionCommentAdd, TransitionResponse, Update, UpdateRequest,
 };
-use crate::{Comment, Status, User};
+use crate::{Comment, Status, User, Visibility};
 
 // The prefix of every subsequent REST request.
 // This string comes directly after the host in the URL.
@@ -416,6 +416,7 @@ impl JiraInstance {
         issue_id: &str,
         _user_id: &str,
         content: &str,
+        visibility: Option<Visibility>,
     ) -> Result<Comment, Box<dyn std::error::Error + Send + Sync>> {
         let url = self.path(&Method::Key(issue_id), 0) + "/comment";
 
@@ -425,6 +426,7 @@ impl JiraInstance {
         let comment = Comment {
             // author: Some(user),
             body: content.to_owned(),
+            visibility,
             ..Default::default()
         };
 
